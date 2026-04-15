@@ -20,11 +20,11 @@ This project aims to detect fake news using AI and NLP techniques. It combines t
 - Streamlit
 
 ##  Current Progress
-✔ Data preprocessing completed  
-✔ ML models trained and evaluated  
-✔ BiLSTM model implemented  
-✔ Hybrid model training in progress  
-✔ Initial project structure created  
+ Data preprocessing completed  
+ ML models trained and evaluated  
+ BiLSTM model implemented  
+ Hybrid model training in progress  
+ Initial project structure created  
 
 ##  Note
 Datasets are not included due to size limitations.
