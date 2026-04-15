@@ -46,10 +46,13 @@ Datasets are not included due to size limitations.
 ### 🔹 Training Curve (BiLSTM)
 ![Training Curve](assets/bilstm_training_curves.png)
 
+### 🔹 Training Curve (hybrid)
+![Training Curve](assets/hybrid_training_curves.png)
+
 ### 🔹 Model Comparison
 Results stored in:
 - `models/ml_results.csv`
-- `models/full_comparison.csv`
+- `models/final_comparison.csv`
 
 ##  Author
 Avijit Bose
