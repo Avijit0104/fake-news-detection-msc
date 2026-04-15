@@ -1,9 +1,9 @@
-# 📰 Real-Time Fake News Detection Software
+#  Real-Time Fake News Detection Software
 
-## 📌 Project Overview
+##  Project Overview
 This project aims to detect fake news using AI and NLP techniques. It combines traditional machine learning, deep learning, and real-time data analysis.
 
-## 🚀 Features
+##  Features
 - Fake news detection using ML (Logistic Regression, Naive Bayes, SVM)
 - Deep learning model (BiLSTM)
 - Hybrid model (TF-IDF + BiLSTM)
@@ -11,7 +11,7 @@ This project aims to detect fake news using AI and NLP techniques. It combines t
 - URL-based news verification
 - Streamlit GUI 
 
-## 🧠 Technologies Used
+##  Technologies Used
 - Python
 - Scikit-learn
 - TensorFlow / Keras
@@ -19,17 +19,17 @@ This project aims to detect fake news using AI and NLP techniques. It combines t
 - Pandas
 - Streamlit
 
-## 📊 Current Progress
+##  Current Progress
 ✔ Data preprocessing completed  
 ✔ ML models trained and evaluated  
 ✔ BiLSTM model implemented  
 ✔ Hybrid model training in progress  
 ✔ Initial project structure created  
 
-## ⚠️ Note
+##  Note
 Datasets are not included due to size limitations.
 
-## 📊 Results & Outputs
+##  Results & Outputs
 
 ### 🔹 Machine Learning Models Performance
 - Logistic Regression, Naive Bayes, and SVM were trained using TF-IDF features.
@@ -51,5 +51,5 @@ Results stored in:
 - `models/ml_results.csv`
 - `models/full_comparison.csv`
 
-## 👨‍💻 Author
+##  Author
 Avijit Bose
