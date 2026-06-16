@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 import os
 from dotenv import load_dotenv
 
@@ -32,4 +30,3 @@ MEDIUM_SOURCES = [
 MAX_LEN        = 300
 MAX_TFIDF      = 10000
 THRESHOLD      = 0.72
->>>>>>> e004906 (changed llm)
