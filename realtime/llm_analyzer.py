@@ -1,83 +1,89 @@
 import requests
 import json
+import re
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 
 def analyze_with_phi3(title, content=""):
+    prompt = f"""You are a fake news detection expert.
+Analyze this news article and respond ONLY with valid JSON, no extra text.
 
-    prompt = f"""
-You are a fake news detection expert.
+Title: {title}
+Content: {content[:800] if content else 'Not provided'}
 
-Analyze this article.
+Respond with exactly this JSON format:
+{{"label": "FAKE", "confidence": 85, "explanation": "one sentence reason", "red_flags": ["flag1"]}}
 
-Title:
-{title}
-
-Content:
-{content[:1000]}
-
-Return ONLY JSON:
-
-{{
-    "label": "FAKE or REAL",
-    "confidence": 50-99,
-    "explanation": "short explanation"
-}}
-"""
+label must be FAKE or REAL. confidence between 50-99."""
 
     try:
-
         response = requests.post(
             OLLAMA_URL,
             json={
-                "model": "phi3",
-                "prompt": prompt,
-                "stream": False
+                "model"  : "phi3",
+                "prompt" : prompt,
+                "stream" : False
             },
             timeout=60
         )
 
-        data = response.json()
+        raw = response.json().get("response", "")
 
-        raw = data["response"]
+        # Clean markdown fences if present
+        raw = raw.replace('```json','').replace('```','').strip()
 
-        return {
-            "label": "REAL" if "REAL" in raw.upper() else "FAKE",
-            "confidence": 80,
-            "explanation": raw[:200]
-        }
+        # Extract JSON from response
+        json_match = re.search(r'\{.*?\}', raw, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group())
+            return {
+                'label'      : str(result.get('label','REAL')).upper(),
+                'confidence' : int(result.get('confidence', 75)),
+                'explanation': result.get('explanation', 'Analysis complete.'),
+                'red_flags'  : result.get('red_flags', []),
+                'verdict'    : '',
+                'error'      : None
+            }
+        else:
+            # Fallback — extract label from raw text
+            label = 'FAKE' if 'FAKE' in raw.upper() else 'REAL'
+            return {
+                'label'      : label,
+                'confidence' : 70,
+                'explanation': raw[:150].strip(),
+                'red_flags'  : [],
+                'verdict'    : '',
+                'error'      : None
+            }
 
     except Exception as e:
         return {
-            "label": "ERROR",
-            "confidence": 0,
-            "explanation": str(e)
-        }
-def get_agreement_analysis(model_label,
-                           llm_label,
-                           model_conf,
-                           llm_conf):
-
-    if model_label == llm_label:
-        avg_conf = round((model_conf + llm_conf) / 2, 1)
-
-        return {
-            "status": "AGREE",
-            "color": "#38ef7d",
-            "icon": "✅",
-            "message": f"Both models agree — {model_label}",
-            "avg_conf": avg_conf,
-            "reliability": "HIGH" if avg_conf > 80 else "MEDIUM"
+            'label'      : 'ERROR',
+            'confidence' : 0,
+            'explanation': str(e)[:100],
+            'red_flags'  : [],
+            'verdict'    : '',
+            'error'      : str(e)
         }
 
+
+def get_agreement_analysis(model_label, llm_label, model_conf, llm_conf):
     avg_conf = round((model_conf + llm_conf) / 2, 1)
-
+    if model_label == llm_label:
+        return {
+            'status'     : 'AGREE',
+            'color'      : '#38ef7d',
+            'icon'       : '✅',
+            'message'    : f'Both models agree — {model_label}',
+            'avg_conf'   : avg_conf,
+            'reliability': 'HIGH' if avg_conf > 80 else 'MEDIUM'
+        }
     return {
-        "status": "DISAGREE",
-        "color": "#ffd700",
-        "icon": "⚠️",
-        "message": "Models disagree — manual verification recommended",
-        "avg_conf": avg_conf,
-        "reliability": "LOW"
+        'status'     : 'DISAGREE',
+        'color'      : '#ffd700',
+        'icon'       : '⚠️',
+        'message'    : 'Models disagree — manual verification recommended',
+        'avg_conf'   : avg_conf,
+        'reliability': 'LOW'
     }

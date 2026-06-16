@@ -1,89 +1,63 @@
 import requests
 import json
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config.config import GEMINI_API_KEY
+import re
 
-# NO google.generativeai import — uses REST API directly to avoid protobuf conflict
+OLLAMA_URL = "http://localhost:11434/api/generate"
 
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.0-flash:generateContent"
-)
 
-def analyze_with_gemini(title, content=''):
-    prompt = f"""You are an expert fake news detection system.
-Analyze the following news article and determine if it is FAKE or REAL news.
+def analyze_with_phi3(title, content=""):
+    prompt = f"""You are a fake news detection expert.
+Analyze this news article. Respond ONLY with a JSON object, no other text.
 
-Article Title: {title}
-Article Content: {content[:1000] if content else 'Not provided'}
+Title: {title}
+Content: {content[:800] if content else 'Not provided'}
 
-Respond ONLY with a valid JSON object in exactly this format (no markdown, no backticks):
-{{
-  "label": "FAKE" or "REAL",
-  "confidence": <number between 50 and 99>,
-  "explanation": "<one sentence explanation, max 150 characters>",
-  "red_flags": ["<flag1>", "<flag2>"] or [],
-  "verdict": "<FAKE NEWS DETECTED> or <APPEARS CREDIBLE>"
-}}
+JSON format (respond with ONLY this, no markdown):
+{{"label": "FAKE", "confidence": 85, "explanation": "one sentence reason", "red_flags": []}}
 
-Rules:
-- label must be exactly FAKE or REAL
-- confidence is your certainty percentage (50-99)
-- explanation is brief and factual
-- red_flags lists specific issues if FAKE, empty list if REAL"""
+label must be FAKE or REAL. confidence between 50-99."""
 
     try:
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature"    : 0.1,
-                "maxOutputTokens": 300,
-            }
-        }
-
         response = requests.post(
-            f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-            headers = {'Content-Type': 'application/json'},
-            json    = payload,
-            timeout = 30
+            OLLAMA_URL,
+            json={"model": "phi3", "prompt": prompt, "stream": False},
+            timeout=60
         )
+        raw = response.json().get("response", "")
 
-        if response.status_code != 200:
-            return {
-                'label'      : 'ERROR',
-                'confidence' : 0,
-                'explanation': f"API Error {response.status_code}",
-                'red_flags'  : [],
-                'verdict'    : '',
-                'error'      : response.text[:200]
-            }
+        # Remove ALL markdown formatting
+        cleaned = re.sub(r'```[\w]*\n?', '', raw).strip()
+        cleaned = re.sub(r'```', '', cleaned).strip()
 
-        data     = response.json()
-        raw_text = data['candidates'][0]['content']['parts'][0]['text']
-        raw_text = raw_text.replace('```json','').replace('```','').strip()
+        # Try direct JSON parse first
+        try:
+            result = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Extract JSON block with regex
+            match = re.search(r'\{[^{}]*"label"[^{}]*\}', cleaned, re.DOTALL)
+            if match:
+                result = json.loads(match.group())
+            else:
+                # Last resort — extract values manually
+                label = 'FAKE' if 'FAKE' in raw.upper() else 'REAL'
+                return {
+                    'label'      : label,
+                    'confidence' : 70,
+                    'explanation': 'Analysis completed.',
+                    'red_flags'  : [],
+                    'verdict'    : '',
+                    'error'      : None
+                }
 
-        result = json.loads(raw_text)
         return {
-            'label'      : str(result.get('label','UNKNOWN')).upper(),
-            'confidence' : int(result.get('confidence', 70)),
-            'explanation': result.get('explanation', 'Analysis complete.'),
+            'label'      : str(result.get('label', 'REAL')).upper().strip(),
+            'confidence' : int(result.get('confidence', 75)),
+            'explanation': str(result.get('explanation', 'Analysis complete.')),
             'red_flags'  : result.get('red_flags', []),
-            'verdict'    : result.get('verdict', ''),
-            'error'      : None
-        }
-
-    except json.JSONDecodeError:
-        label = 'FAKE' if 'FAKE' in raw_text.upper() else 'REAL'
-        return {
-            'label'      : label,
-            'confidence' : 70,
-            'explanation': 'Analysis completed.',
-            'red_flags'  : [],
             'verdict'    : '',
             'error'      : None
         }
+
     except Exception as e:
         return {
             'label'      : 'ERROR',
@@ -93,30 +67,11 @@ Rules:
             'verdict'    : '',
             'error'      : str(e)
         }
-    
-    if response.status_code != 200:
-        if response.status_code == 429:
-            return {
-                'label'      : 'ERROR',
-                'confidence' : 0,
-                'explanation': 'Gemini rate limit reached. Please wait 30 seconds and try again.',
-                'red_flags'  : [],
-                'verdict'    : '',
-                'error'      : 'Rate limit (429) — wait 30 seconds'
-            }
-        return {
-            'label'      : 'ERROR',
-            'confidence' : 0,
-            'explanation': f"API Error {response.status_code}",
-            'red_flags'  : [],
-            'verdict'    : '',
-            'error'      : response.text[:200]
-        }
 
 
-def get_agreement_analysis(model_label, gemini_label, model_conf, gemini_conf):
-    if model_label == gemini_label:
-        avg_conf = round((model_conf + gemini_conf) / 2, 1)
+def get_agreement_analysis(model_label, llm_label, model_conf, llm_conf):
+    avg_conf = round((model_conf + llm_conf) / 2, 1)
+    if model_label == llm_label:
         return {
             'status'     : 'AGREE',
             'color'      : '#38ef7d',
@@ -125,12 +80,11 @@ def get_agreement_analysis(model_label, gemini_label, model_conf, gemini_conf):
             'avg_conf'   : avg_conf,
             'reliability': 'HIGH' if avg_conf > 80 else 'MEDIUM'
         }
-    else:
-        return {
-            'status'     : 'DISAGREE',
-            'color'      : '#ffd700',
-            'icon'       : '⚠️',
-            'message'    : 'Models disagree — manual verification recommended',
-            'avg_conf'   : round((model_conf + gemini_conf) / 2, 1),
-            'reliability': 'LOW'
-        }
+    return {
+        'status'     : 'DISAGREE',
+        'color'      : '#ffd700',
+        'icon'       : '⚠️',
+        'message'    : 'Models disagree — manual verification recommended',
+        'avg_conf'   : avg_conf,
+        'reliability': 'LOW'
+    }

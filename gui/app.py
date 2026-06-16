@@ -141,6 +141,45 @@ def get_source_credibility(url='', source_name=''):
             return {'label': 'Trusted Source', 'color': '#38ef7d', 'icon': '✅'}
     return {'label': 'Unknown Source', 'color': '#ffd700', 'icon': '⚠️'}
 
+def predict_with_ensemble(text, url='', phi3_label=None):
+    """
+    Combine Hybrid Model + Phi-3 for smarter prediction.
+    Only mark FAKE when both models agree OR confidence is very high.
+    """
+    result = predict_news(text, url)
+
+    if phi3_label is None:
+        return result  # no LLM available, use model alone
+
+    model_label = result['label']
+    model_conf  = result['confidence']
+
+    # Both agree → high reliability
+    if model_label == phi3_label:
+        result['final_label']  = model_label
+        result['reliability']  = 'HIGH'
+        result['verdict_note'] = f'Both models agree: {model_label}'
+
+    # Only your model says FAKE with low confidence → UNCERTAIN
+    elif model_label == 'FAKE' and model_conf < 90:
+        result['final_label']  = 'UNCERTAIN'
+        result['reliability']  = 'LOW'
+        result['verdict_note'] = 'Models disagree — manual verification needed'
+
+    # Phi-3 says FAKE but your model says REAL → trust phi-3
+    elif phi3_label == 'FAKE' and model_label == 'REAL':
+        result['final_label']  = 'UNCERTAIN'
+        result['reliability']  = 'MEDIUM'
+        result['verdict_note'] = 'LLM flagged potential misinformation'
+
+    else:
+        result['final_label']  = model_label
+        result['reliability']  = 'MEDIUM'
+        result['verdict_note'] = 'Based on hybrid model analysis'
+
+    return result
+
+
 
 def predict_news(text, url=''):
     start_time = time.time()
@@ -151,8 +190,8 @@ def predict_news(text, url=''):
     tfidf_v = models['tfidf'].transform([cleaned]).toarray().astype('float32')
     prob    = models['hybrid'].predict([padded, tfidf_v], verbose=0)[0][0]
 
-    label = 'FAKE' if prob > 0.72 else 'REAL'
-    conf  = prob if prob > 0.72 else 1 - prob
+    label = 'FAKE' if prob > 0.85 else 'REAL'
+    conf  = prob if prob > 0.85 else 1 - prob
 
     svm_v     = models['svm_tfidf'].transform([cleaned])
     svm_pred  = models['svm'].predict(svm_v)[0]
@@ -302,7 +341,8 @@ with tab1:
             st.warning("⚠️ Please enter at least 10 words for accurate analysis.")
         else:
             with st.spinner("🤖 Analyzing with AI..."):
-                result = predict_news(full_text)
+                # result = predict_news(full_text)
+                result = predict_with_ensemble(full_text,phi3_label=phi3_label)
                 time.sleep(0.5)
 
             st.markdown("---")
@@ -310,7 +350,9 @@ with tab1:
             col_res, col_gauge = st.columns([1, 1])
 
             with col_res:
-                if result['label'] == 'FAKE':
+                final_label = result.get('final_label', result['label'])
+
+                if final_label == 'FAKE':
                     st.markdown("""
                     <div class='result-fake'>
                         <div class='result-emoji'>🚨</div>
@@ -318,13 +360,26 @@ with tab1:
                         <div style='color:rgba(255,255,255,0.8);margin-top:8px;font-size:0.95rem;'>
                         This article shows signs of misinformation</div>
                     </div>""", unsafe_allow_html=True)
-                else:
+
+                elif final_label == 'REAL':
                     st.markdown("""
                     <div class='result-real'>
                         <div class='result-emoji'>✅</div>
                         <div class='result-label'>REAL NEWS</div>
                         <div style='color:rgba(255,255,255,0.8);margin-top:8px;font-size:0.95rem;'>
                         This article appears to be credible</div>
+                    </div>""", unsafe_allow_html=True)
+
+                else:  # UNCERTAIN
+                    st.markdown("""
+                    <div style='background:linear-gradient(135deg,#f7971e,#ffd200);
+                                border-radius:16px;padding:2rem;text-align:center;
+                                box-shadow:0 8px 32px rgba(255,210,0,0.4);'>
+                        <div style='font-size:4rem;'>⚠️</div>
+                        <div style='font-size:3rem;font-weight:900;color:white;letter-spacing:3px;'>
+                        UNCERTAIN</div>
+                        <div style='color:rgba(255,255,255,0.9);margin-top:8px;font-size:0.95rem;'>
+                        Models disagree — manual verification recommended</div>
                     </div>""", unsafe_allow_html=True)
 
             with col_gauge:
@@ -666,8 +721,7 @@ for the same article. This is the core research contribution of this project.</s
                     full_text = f"{llm_headline} {llm_content}".strip()
                     my_result = predict_news(full_text)
             with col_g:
-                with st.spinner("🤖 Querying phi3..."):
-                    # from realtime.llm_analyzer import analyze_with_gemini, get_agreement_analysis
+                with st.spinner("🤖 Querying Gemini..."):
                     from realtime.llm_analyzer import analyze_with_phi3, get_agreement_analysis
                     gem_result = analyze_with_phi3(llm_headline, llm_content)
 
@@ -695,7 +749,7 @@ border-radius:16px;padding:1.5rem;text-align:center;">
 
             with col2:
                 if gem_result.get('error'):
-                    st.error(f"❌ phi-3 error: {gem_result['error']}")
+                    st.error(f"❌ Gemini error: {gem_result['error']}")
                 else:
                     st.markdown(f"""
 <div style="background:rgba(255,255,255,0.05);border:2px solid {gem_color};
@@ -705,7 +759,7 @@ border-radius:16px;padding:1.5rem;text-align:center;">
 <div style="font-size:2rem;font-weight:900;color:{gem_color};letter-spacing:2px;">{gem_result['label']}</div>
 <div style="color:#aaa;font-size:0.9rem;margin-top:8px;">{gem_result['confidence']}% confidence</div>
 <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:0.8rem;margin-top:12px;">
-<div style="color:#888;font-size:0.75rem;">Phi-3 Mini (Local)</div>
+<div style="color:#888;font-size:0.75rem;">Gemini 2.0 Flash Lite</div>
 <div style="color:#aaa;font-size:0.8rem;margin-top:4px;">Real-time contextual understanding</div>
 </div></div>""", unsafe_allow_html=True)
 
@@ -727,7 +781,7 @@ Reliability: <span style="color:{agreement['color']};">{agreement['reliability']
 </div></div>""", unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("#### 🧠 phi-3's Analysis")
+                st.markdown("#### 🧠 Gemini's Analysis")
                 st.markdown(f"""
 <div style="background:rgba(123,47,247,0.08);border:1px solid rgba(123,47,247,0.3);
 border-radius:12px;padding:1.2rem;">
