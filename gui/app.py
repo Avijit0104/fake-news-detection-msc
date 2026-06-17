@@ -703,7 +703,7 @@ with tab5:
 <div style="background:rgba(123,47,247,0.08);border:1px solid rgba(123,47,247,0.3);
 border-radius:12px;padding:1rem;margin-bottom:1.5rem;">
 <span style="color:#7b2ff7;font-weight:700;">🔬 Research Feature</span>
-<span style="color:#aaa;"> Compare your trained Hybrid Model against Google Gemini LLM
+<span style="color:#aaa;"> Compare your trained Hybrid Model against Google phi3 LLM
 for the same article. This is the core research contribution of this project.</span>
 </div>""", unsafe_allow_html=True)
 
@@ -721,7 +721,7 @@ for the same article. This is the core research contribution of this project.</s
                     full_text = f"{llm_headline} {llm_content}".strip()
                     my_result = predict_news(full_text)
             with col_g:
-                with st.spinner("🤖 Querying Gemini..."):
+                with st.spinner("🤖 Querying phi3..."):
                     from realtime.llm_analyzer import analyze_with_phi3, get_agreement_analysis
                     gem_result = analyze_with_phi3(llm_headline, llm_content)
 
@@ -749,7 +749,7 @@ border-radius:16px;padding:1.5rem;text-align:center;">
 
             with col2:
                 if gem_result.get('error'):
-                    st.error(f"❌ Gemini error: {gem_result['error']}")
+                    st.error(f"❌ phi3 error: {gem_result['error']}")
                 else:
                     st.markdown(f"""
 <div style="background:rgba(255,255,255,0.05);border:2px solid {gem_color};
@@ -759,7 +759,7 @@ border-radius:16px;padding:1.5rem;text-align:center;">
 <div style="font-size:2rem;font-weight:900;color:{gem_color};letter-spacing:2px;">{gem_result['label']}</div>
 <div style="color:#aaa;font-size:0.9rem;margin-top:8px;">{gem_result['confidence']}% confidence</div>
 <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:0.8rem;margin-top:12px;">
-<div style="color:#888;font-size:0.75rem;">Gemini 2.0 Flash Lite</div>
+<div style="color:#888;font-size:0.75rem;">phi3 2.0 Flash Lite</div>
 <div style="color:#aaa;font-size:0.8rem;margin-top:4px;">Real-time contextual understanding</div>
 </div></div>""", unsafe_allow_html=True)
 
@@ -781,7 +781,7 @@ Reliability: <span style="color:{agreement['color']};">{agreement['reliability']
 </div></div>""", unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("#### 🧠 Gemini's Analysis")
+                st.markdown("#### 🧠 phi3's Analysis")
                 st.markdown(f"""
 <div style="background:rgba(123,47,247,0.08);border:1px solid rgba(123,47,247,0.3);
 border-radius:12px;padding:1.2rem;">
@@ -810,7 +810,7 @@ border-radius:12px;padding:1.2rem;">
                     insight_color = '#ffd700'
                     insight_text  = (
                         f"Your Hybrid Model predicts <b>{my_result['label']}</b> ({my_result['confidence']}%) "
-                        f"while Gemini predicts <b>{gem_result['label']}</b> ({gem_result['confidence']}%). "
+                        f"while phi3 predicts <b>{gem_result['label']}</b> ({gem_result['confidence']}%). "
                         f"Disagreement may indicate temporal distribution shift — this article may be "
                         f"outside the model's training distribution."
                     )
