@@ -6,28 +6,56 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 
 
 def analyze_with_phi3(title, content=""):
-    prompt = f"""You are a fake news detection expert.
-Analyze this news article and respond ONLY with valid JSON, no extra text.
+    prompt = f"""
+You are a professional fact-checking assistant.
 
-Title: {title}
-Content: {content[:800] if content else 'Not provided'}
+Analyze the article carefully.
 
-Respond with exactly this JSON format:
-{{"label": "FAKE", "confidence": 85, "explanation": "one sentence reason", "red_flags": ["flag1"]}}
+Rules:
+1. Do NOT guess facts.
+2. If the article appears factual and contains no obvious misinformation, return REAL.
+3. If the article contains fabricated claims, contradictions, or misinformation, return FAKE.
+4. If there is insufficient evidence from the article alone, return UNCERTAIN.
+5. Use conservative reasoning.
 
-label must be FAKE or REAL. confidence between 50-99."""
+Title:
+{title}
+
+Content:
+{content[:1200] if content else "Not provided"}
+
+Return ONLY valid JSON:
+
+{{
+    "label": "REAL",
+    "confidence": 85,
+    "explanation": "Brief explanation",
+    "red_flags": []
+}}
+"""
 
     try:
         response = requests.post(
             OLLAMA_URL,
             json={
-                "model"  : "phi3",
+                "model"  : "llama3.1:8b",
                 "prompt" : prompt,
                 "stream" : False
             },
-            timeout=60
+            timeout=180
         )
 
+
+
+        if response.status_code != 200:
+            return {
+                'label': 'ERROR',
+                'confidence': 0,
+                'explanation': f'Ollama error {response.status_code}',
+                'red_flags': [],
+                'verdict': '',
+                'error': response.text[:200]
+            }
         raw = response.json().get("response", "")
 
         # Clean markdown fences if present
@@ -47,7 +75,14 @@ label must be FAKE or REAL. confidence between 50-99."""
             }
         else:
             # Fallback — extract label from raw text
-            label = 'FAKE' if 'FAKE' in raw.upper() else 'REAL'
+            raw_upper = raw.upper()
+
+            if "UNCERTAIN" in raw_upper:
+                label = "UNCERTAIN"
+            elif "FAKE" in raw_upper:
+                label = "FAKE"
+            else:
+                label = "REAL"
             return {
                 'label'      : label,
                 'confidence' : 70,

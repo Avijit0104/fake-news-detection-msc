@@ -1,3 +1,5 @@
+from cProfile import label
+
 import streamlit as st
 import sys
 import os
@@ -16,7 +18,7 @@ from preprocessing.text_cleaner import clean_text
 # ── PAGE CONFIG ───────────────────────────────────────────────
 st.set_page_config(
     page_title="FakeShield — Fake News Detector",
-    page_icon="🛡️",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -183,35 +185,56 @@ def predict_with_ensemble(text, url='', phi3_label=None):
 
 def predict_news(text, url=''):
     start_time = time.time()
-    cleaned    = clean_text(text)
+    cleaned = clean_text(text)
 
-    seq     = models['tokenizer'].texts_to_sequences([cleaned])
-    padded  = pad_sequences(seq, maxlen=MAX_LEN, padding='post', truncating='post')
+    seq = models['tokenizer'].texts_to_sequences([cleaned])
+    padded = pad_sequences(
+        seq,
+        maxlen=MAX_LEN,
+        padding='post',
+        truncating='post'
+    )
+
     tfidf_v = models['tfidf'].transform([cleaned]).toarray().astype('float32')
-    prob    = models['hybrid'].predict([padded, tfidf_v], verbose=0)[0][0]
 
-    label = 'FAKE' if prob > 0.85 else 'REAL'
-    conf  = prob if prob > 0.85 else 1 - prob
+    # Hybrid model prediction
+    prob = models['hybrid'].predict(
+        [padded, tfidf_v],
+        verbose=0
+    )[0][0]
 
-    svm_v     = models['svm_tfidf'].transform([cleaned])
-    svm_pred  = models['svm'].predict(svm_v)[0]
+    # DEBUG OUTPUT
+    # st.write("Raw probability:", prob)
+
+    label = 'REAL' if prob > 0.85 else 'FAKE'
+    conf = prob if prob > 0.85 else 1 - prob
+
+    # st.write("Raw probability:", prob)
+    # st.write("Confidence:", conf)
+
+    svm_v = models['svm_tfidf'].transform([cleaned])
+    svm_pred = models['svm'].predict(svm_v)[0]
     svm_label = 'FAKE' if svm_pred == 1 else 'REAL'
 
+    # st.write("Hybrid:", label)
+    # st.write("SVM:", svm_label)
+
     latency = round(time.time() - start_time, 3)
-    cred    = get_source_credibility(url)
+    cred = get_source_credibility(url)
 
     return {
-        'label'            : label,
-        'confidence'       : round(float(conf) * 100, 2),
-        'probability'      : round(float(prob) * 100, 2),
-        'svm_label'        : svm_label,
-        'agreement'        : label == svm_label,
-        'latency'          : latency,
-        'cleaned'          : cleaned,
-        'credibility'      : cred['label'],
+        'label': label,
+        'confidence': round(float(conf) * 100, 2),
+        'probability': round(float(prob) * 100, 2),
+        'svm_label': svm_label,
+        'agreement': label == svm_label,
+        'latency': latency,
+        'cleaned': cleaned,
+        'credibility': cred['label'],
         'credibility_color': cred['color'],
-        'credibility_icon' : cred['icon'],
+        'credibility_icon': cred['icon'],
     }
+
 
 
 def render_gauge(confidence, label):
@@ -254,9 +277,9 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
-    st.markdown("### 📊 Model Performance")
+    st.markdown("### Model Performance")
     for name, value in [("Hybrid Model","97.84%"),("SVM Baseline","97.66%"),
-                         ("F1 Score","97.91%"),("Dataset","72K Articles")]:
+                         ("F1 Score","97.91%"),("Dataset","572K Articles")]:
         st.markdown(f"""
         <div class='metric-card' style='margin-bottom:8px;'>
             <div class='metric-value'>{value}</div>
@@ -278,9 +301,9 @@ with st.sidebar:
     <div style='color:#ffd700;font-weight:700;font-size:0.85rem;margin-bottom:6px;'>
     ⚠️ Model Limitations</div>
     <div style='color:#888;font-size:0.78rem;line-height:1.7;'>
-    • Trained on 2015–2018 news data<br>
+    • Trained on 2015–2021 news data<br>
     • Best on WELFake-style articles<br>
-    • May misclassify post-2018 news<br>
+    • May misclassify post-2021 news<br>
     • Always verify with trusted sources
     </div></div>""", unsafe_allow_html=True)
 
@@ -288,23 +311,23 @@ with st.sidebar:
 # ── HEADER ────────────────────────────────────────────────────
 st.markdown("""
 <div class='main-header'>
-    <div class='main-title'>🛡️ FAKESHIELD</div>
+    <div class='main-title'>FAKESHIELD</div>
     <div class='main-subtitle'>Real-Time Fake News Detection powered by AI & NLP</div>
 </div>""", unsafe_allow_html=True)
 st.markdown("---")
 
 if not models.get('loaded'):
-    st.error(f"❌ Models failed to load: {models.get('error')}")
+    st.error(f" Models failed to load: {models.get('error')}")
     st.stop()
 
 
 # ── TABS ──────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📝  Text Analysis",
-    "🔗  URL Analysis",
-    "📊  Model Comparison",
-    "📡  Live News",
-    "🤖  LLM Compare"
+    " Text Analysis",
+    " URL Analysis",
+    " Model Comparison",
+    " Live News",
+    " LLM Compare"
 ])
 
 
@@ -316,8 +339,8 @@ with tab1:
     col_input, col_tip = st.columns([3, 1])
 
     with col_input:
-        headline = st.text_input("📰 Headline (optional)", placeholder="Enter the news headline here...")
-        content  = st.text_area("📄 Article Content", placeholder="Paste the full news article content here...", height=200)
+        headline = st.text_input(" Headline (optional)", placeholder="Enter the news headline here...")
+        content  = st.text_area(" Article Content", placeholder="Paste the full news article content here...", height=200)
 
     with col_tip:
         st.markdown("""
@@ -333,20 +356,36 @@ with tab1:
     with col_btn1:
         analyze_btn = st.button("🔍 ANALYZE", key="analyze_text")
     with col_btn2:
-        st.button("🗑️ CLEAR", key="clear_text")
+        st.button(" CLEAR", key="clear_text")
 
     if analyze_btn:
         full_text = f"{headline} {content}".strip()
         if len(full_text.split()) < 10:
-            st.warning("⚠️ Please enter at least 10 words for accurate analysis.")
+            st.warning(" Please enter at least 10 words for accurate analysis.")
         else:
-            with st.spinner("🤖 Analyzing with AI..."):
-                # result = predict_news(full_text)
-                result = predict_with_ensemble(full_text,phi3_label=phi3_label)
+            # with st.spinner(" Analyzing with AI..."):
+            #     # result = predict_news(full_text)
+            #     result = predict_with_ensemble(full_text,phi3_label=phi3_label)
+            #     time.sleep(0.5)
+            with st.spinner(" Analyzing with AI..."):
+
+                from realtime.llm_analyzer import analyze_with_phi3
+
+                phi3_result = analyze_with_phi3(headline, content)
+                phi3_label = phi3_result["label"]
+
+                result = predict_with_ensemble(
+                    full_text,
+                    phi3_label=phi3_label
+                )
+
                 time.sleep(0.5)
 
+
+
+
             st.markdown("---")
-            st.markdown("### 🎯 Analysis Results")
+            st.markdown("### Analysis Results")
             col_res, col_gauge = st.columns([1, 1])
 
             with col_res:
@@ -401,9 +440,13 @@ with tab1:
                 st.markdown(f"<div class='metric-card'><div class='metric-value'>{result['latency']}s</div><div class='metric-label'>Response Time</div></div>", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("#### 📈 Fake vs Real Probability")
-            fake_prob = result['probability']
-            real_prob = round(100 - fake_prob, 2)
+            st.markdown("#### Fake vs Real Probability")
+            if result['label'] == 'REAL':
+                real_prob = result['probability']
+                fake_prob = round(100 - real_prob, 2)
+            else:
+                fake_prob = result['probability']
+                real_prob = round(100 - fake_prob, 2)
             st.markdown(f"""
             <div style='margin:8px 0;'>
                 <div style='display:flex;justify-content:space-between;margin-bottom:4px;'>
@@ -436,7 +479,7 @@ with tab1:
                     </div>
                 </div>""", unsafe_allow_html=True)
 
-            with st.expander("🔍 View Cleaned & Processed Text"):
+            with st.expander(" View Cleaned & Processed Text"):
                 st.markdown(f"""
                 <div style='background:rgba(0,0,0,0.3);border-radius:8px;padding:1rem;
                             color:#aaa;font-size:0.85rem;line-height:1.8;font-family:monospace;'>
@@ -458,13 +501,13 @@ with tab2:
     </div>""", unsafe_allow_html=True)
 
     url_input      = st.text_input("🔗 News Article URL", placeholder="https://www.example.com/news/article...")
-    analyze_url_btn = st.button("🔍 FETCH & ANALYZE", key="analyze_url")
+    analyze_url_btn = st.button(" FETCH & ANALYZE", key="analyze_url")
 
     if analyze_url_btn:
         if not url_input.startswith("http"):
-            st.warning("⚠️ Please enter a valid URL starting with http/https")
+            st.warning(" Please enter a valid URL starting with http/https")
         else:
-            with st.spinner("🌐 Fetching article from URL..."):
+            with st.spinner(" Fetching article from URL..."):
                 try:
                     import requests as req
                     from bs4 import BeautifulSoup
@@ -520,7 +563,7 @@ with tab2:
 # TAB 3 — MODEL COMPARISON
 # ════════════════════════════════════════════════════════════
 with tab3:
-    st.markdown("### 📊 Model Performance Comparison")
+    st.markdown("### Model Performance Comparison")
     import pandas as pd
 
     comparison_data = {
@@ -571,7 +614,7 @@ with tab3:
     )
     st.plotly_chart(fig_radar, use_container_width=True)
 
-    st.markdown("#### 📋 Full Results Table")
+    st.markdown("#### Full Results Table")
     st.dataframe(
         df_comp.set_index('Model').style.background_gradient(cmap='plasma', axis=None).format("{:.2f}"),
         use_container_width=True
@@ -582,7 +625,7 @@ with tab3:
 # TAB 4 — LIVE NEWS
 # ════════════════════════════════════════════════════════════
 with tab4:
-    st.markdown("### 📡 Live News Analysis")
+    st.markdown("### Live News Analysis")
     st.markdown("""
     <div style='background:rgba(0,210,255,0.08);border:1px solid rgba(0,210,255,0.2);
                 border-radius:12px;padding:1rem;margin-bottom:1.5rem;'>
@@ -593,7 +636,7 @@ with tab4:
     col_cat, col_src, col_num = st.columns([2, 2, 1])
     with col_cat:
         from config.config import NEWS_CATEGORIES
-        category = st.selectbox("📂 Category", options=NEWS_CATEGORIES, index=0)
+        category = st.selectbox(" Category", options=NEWS_CATEGORIES, index=0)
     with col_src:
         source_type = st.selectbox("📡 Source", options=["NewsAPI (Live)", "RSS Feeds (Backup)"])
     with col_num:
@@ -617,7 +660,7 @@ with tab4:
         if error:
             st.error(f"❌ {error}")
             if "apiKey" in str(error) or "401" in str(error):
-                st.info("💡 Check your API key in config/config.py")
+                st.info(" Check your API key in config/config.py")
         elif not articles:
             st.warning("No articles found. Try a different category.")
         else:
@@ -698,35 +741,35 @@ with tab4:
 # TAB 5 — LLM COMPARISON
 # ════════════════════════════════════════════════════════════
 with tab5:
-    st.markdown("### 🤖 LLM Comparison Analysis")
+    st.markdown("### LLM Comparison Analysis")
     st.markdown("""
 <div style="background:rgba(123,47,247,0.08);border:1px solid rgba(123,47,247,0.3);
 border-radius:12px;padding:1rem;margin-bottom:1.5rem;">
 <span style="color:#7b2ff7;font-weight:700;">🔬 Research Feature</span>
-<span style="color:#aaa;"> Compare your trained Hybrid Model against Google phi3 LLM
+<span style="color:#aaa;"> Compare your trained Hybrid Model against   phi3 LLM
 for the same article. This is the core research contribution of this project.</span>
 </div>""", unsafe_allow_html=True)
 
-    llm_headline = st.text_input("📰 News Headline", placeholder="Enter headline to compare both models...", key="llm_headline")
-    llm_content  = st.text_area("📄 Article Content (optional)", placeholder="Paste article content for deeper analysis...", height=150, key="llm_content")
-    compare_btn  = st.button("🔬 COMPARE MODELS", key="compare_llm")
+    llm_headline = st.text_input(" News Headline", placeholder="Enter headline to compare both models...", key="llm_headline")
+    llm_content  = st.text_area(" Article Content (optional)", placeholder="Paste article content for deeper analysis...", height=150, key="llm_content")
+    compare_btn  = st.button(" COMPARE MODELS", key="compare_llm")
 
     if compare_btn:
         if len(llm_headline.split()) < 3:
-            st.warning("⚠️ Please enter at least a headline.")
+            st.warning(" Please enter at least a headline.")
         else:
             col_m, col_g = st.columns(2)
             with col_m:
-                with st.spinner("🧠 Running Hybrid Model..."):
+                with st.spinner(" Running Hybrid Model..."):
                     full_text = f"{llm_headline} {llm_content}".strip()
                     my_result = predict_news(full_text)
             with col_g:
-                with st.spinner("🤖 Querying phi3..."):
+                with st.spinner(" Querying phi3..."):
                     from realtime.llm_analyzer import analyze_with_phi3, get_agreement_analysis
                     gem_result = analyze_with_phi3(llm_headline, llm_content)
 
             st.markdown("---")
-            st.markdown("### 📊 Side-by-Side Comparison")
+            st.markdown("###  Side-by-Side Comparison")
             col1, col2 = st.columns(2)
 
             my_color  = '#ff416c' if my_result['label']  == 'FAKE' else '#38ef7d'
@@ -781,7 +824,7 @@ Reliability: <span style="color:{agreement['color']};">{agreement['reliability']
 </div></div>""", unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("#### 🧠 phi3's Analysis")
+                st.markdown("####  phi3's Analysis")
                 st.markdown(f"""
 <div style="background:rgba(123,47,247,0.08);border:1px solid rgba(123,47,247,0.3);
 border-radius:12px;padding:1.2rem;">
@@ -819,6 +862,6 @@ border-radius:12px;padding:1.2rem;">
 <div style="background:rgba(255,255,255,0.03);border-left:3px solid {insight_color};
 border-radius:0 8px 8px 0;padding:1rem;margin-top:8px;">
 <div style="color:{insight_color};font-weight:700;font-size:0.85rem;margin-bottom:4px;">
-📋 RESEARCH INSIGHT</div>
+ RESEARCH INSIGHT</div>
 <div style="color:#aaa;font-size:0.85rem;line-height:1.7;">{insight_text}</div>
 </div>""", unsafe_allow_html=True)
